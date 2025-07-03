@@ -162,3 +162,5 @@ terraform.tfstate
 terraform.tfstate.backup
 terraform.tfvars
 imported-ec2.txt
+*password*
+**password**
