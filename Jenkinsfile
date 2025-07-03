@@ -1,10 +1,9 @@
 pipeline {
-    agent { label 'jappbuildserver1' }	
+    agent { label 'builduser' }	
 
-    tools {
-        // Install the Maven version configured as "M3" and add it to the path.
-        maven "maven_3.6.3"
-    }
+tools {
+    maven "maven_3.6.3"
+}
 
 	environment {	
 		DOCKERHUB_CREDENTIALS=credentials('dockerloginid')
@@ -14,8 +13,8 @@ pipeline {
         stage('SCM Checkout') {
             steps {
                 // Get some code from a GitHub repository
-                git 'https://github.com/LoksaiETA/BankingApp.git'
-                //git 'https://github.com/LoksaiETA/Java-mvn-app2.git'
+                git 'https://github.com/yash1999v/BankingApp.git'
+                
             }
 		}
         stage('Maven Build') {
@@ -27,9 +26,9 @@ pipeline {
        stage("Docker build"){
             steps {
 				sh 'docker version'
-				sh "docker build -t loksaieta/bankapp-eta-app:${BUILD_NUMBER} ."
+				sh "docker build -t yash1999v/bankapp:${BUILD_NUMBER} ."
 				sh 'docker image list'
-				sh "docker tag loksaieta/bankapp-eta-app:${BUILD_NUMBER} loksaieta/bankapp-eta-app:latest"
+				sh "docker tag yash1999v/bankapp:${BUILD_NUMBER} yash1999v/bankapp:latest"
             }
         }
 		stage('Login2DockerHub') {
@@ -41,15 +40,56 @@ pipeline {
 		stage('Push2DockerHub') {
 
 			steps {
-				sh "docker push loksaieta/bankapp-eta-app:latest"
+				sh "docker push yash1999v/bankapp:latest"
 			}
 		}
         stage('Deploy to Kubernetes Dev Environment') {
-            steps {
-		script {
-		sshPublisher(publishers: [sshPublisherDesc(configName: 'Kubernetes', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: 'kubectl apply -f kubernetesdeploy.yaml', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: '.', remoteDirectorySDF: false, removePrefix: '', sourceFiles: '*.yaml')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: false)])
-		       }
-            }
-    	}
+    steps {
+        script {
+            sshPublisher(publishers: [
+                sshPublisherDesc(
+                    configName: 'Kubernetes',
+                    transfers: [
+                        sshTransfer(
+                            sourceFiles: 'kubernetesdeploy.yaml',
+                            remoteDirectory: '',
+                            execCommand: '''
+                                echo "[INFO] Remote Host: $(hostname)"
+                                echo "[INFO] Current User: $(whoami)"
+
+                                echo "[INFO] Checking kubectl version..."
+                                which kubectl || echo "kubectl not found"
+                                kubectl version --client || echo "kubectl not working"
+
+                                echo "[INFO] Kubeconfig context:"
+                                kubectl config current-context || echo "No current context"
+
+                                echo "[INFO] Listing deployment directory..."
+                                ls -l /home/ubuntu/k8s-deploy
+
+                                echo "[INFO] Applying Kubernetes manifest..."
+                                cd /home/ubuntu/k8s-deploy
+                                kubectl apply -f kubernetesdeploy.yaml || echo "[ERROR] Failed to apply manifest"
+                            ''',
+                            execTimeout: 120000,
+                            flatten: true,
+                            cleanRemote: false,
+                            makeEmptyDirs: false,
+                            noDefaultExcludes: false,
+                            patternSeparator: '[, ]+',
+                            remoteDirectorySDF: false,
+                            removePrefix: ''
+                        )
+                    ],
+                    verbose: true,
+                    usePromotionTimestamp: false,
+                    useWorkspaceInPromotion: false
+                )
+            ])
+        }
+    }
+}
+
+
     }
 }
